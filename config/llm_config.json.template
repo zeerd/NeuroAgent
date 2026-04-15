@@ -1,0 +1,143 @@
+{
+  "_metadata": {
+    "version": "2.3.0",
+    "description": "LLM 配置 - 支持 OpenAI 兼容接口，本地 LLM 服务测试",
+    "created": "2026-04-15",
+    "updated": "2026-04-15"
+  },
+  "default_provider": "openai",
+  "models": {
+    "qwen3.5_2b": {
+      "name": "qwen3.5:2b",
+      "description": "2B 参数量的小型模型，作为便宜执行器 A",
+      "provider": "openai",
+      "config": {
+        "model": "qwen3.5:2b",
+        "role": "rACC_STANDARD",
+        "api_type": "openai",
+        "api_base": "${LLM_API_BASE:-http://127.0.0.1:11434/v1}",
+        "api_key": "${API_KEY:-sk-anon}",
+        "api_version": null,
+        "temperature": 0.7,
+        "top_p": 1.0,
+        "max_tokens": 2048,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+        "n": 1,
+        "stream": false,
+        "timeout": 60.0,
+        "estimated_cost": 0.001,
+        "estimated_latency": 30.0,
+        "capabilities": [
+          "快速推理",
+          "文本生成",
+          "代码生成"
+        ]
+      },
+      "is_active": true
+    },
+    "gemma_2b": {
+      "name": "gemma4:e2b",
+      "description": "2B 参数的 Gemma 模型，作为便宜执行器 B",
+      "provider": "openai",
+      "config": {
+        "model": "gemma4:e2b",
+        "role": "rACC_ALTERNATIVE",
+        "api_type": "openai",
+        "api_base": "${LLM_API_BASE:-http://127.0.0.1:11434/v1}",
+        "api_key": "${API_KEY:-sk-anon}",
+        "api_version": null,
+        "temperature": 0.7,
+        "top_p": 1.0,
+        "max_tokens": 2048,
+        "frequency_penalty": 0.0,
+        "presence_penalty": 0.0,
+        "n": 1,
+        "stream": false,
+        "timeout": 60.0,
+        "estimated_cost": 0.001,
+        "estimated_latency": 5.0,
+        "capabilities": [
+          "快速响应",
+          "简洁生成"
+        ]
+      },
+      "is_active": true
+    },
+    "qwen3.5_08b": {
+      "name": "qwen3.5:0.8b",
+      "description": "0.8B 参数的超小模型，作为轻量级评审器 - 最新添加",
+      "provider": "openai",
+      "config": {
+        "model": "qwen3.5:0.8b",
+        "role": "rTPJ_REVIEWER",
+        "api_type": "openai",
+        "api_base": "${LLM_API_BASE:-http://127.0.0.1:11434/v1}",
+        "api_key": "${API_KEY:-sk-anon}",
+        "api_version": null,
+        "temperature": 0.5,
+        "top_p": 0.9,
+        "max_tokens": 1024,
+        "frequency_penalty": -0.1,
+        "presence_penalty": -0.1,
+        "n": 1,
+        "stream": false,
+        "timeout": 60.0,
+        "estimated_cost": 0.0005,
+        "estimated_latency": 20.0,
+        "capabilities": [
+          "轻量级评审",
+          "快速综合",
+          "基础推理判断"
+        ]
+      },
+      "is_active": true
+    },
+    "qwen_35b_expert": {
+      "name": "qwen3.5:35b",
+      "description": "35B 参数量的大型模型，作为专家模型",
+      "provider": "openai",
+      "config": {
+        "model": "qwen3.5:35b",
+        "role": "rDLPFC_UPGRADER",
+        "api_type": "openai",
+        "api_base": "${LLM_API_BASE:-http://127.0.0.1:11434/v1}",
+        "api_key": "${API_KEY:-sk-anon}",
+        "api_version": null,
+        "temperature": 0.3,
+        "top_p": 0.95,
+        "max_tokens": 4096,
+        "frequency_penalty": 0.1,
+        "presence_penalty": 0.1,
+        "n": 1,
+        "stream": false,
+        "timeout": 120.0,
+        "estimated_cost": 0.02,
+        "estimated_latency": 45.0,
+        "capabilities": [
+          "复杂推理",
+          "深度分析",
+          "专家论证",
+          "数学计算"
+        ]
+      },
+      "is_active": true
+    }
+  },
+  "strategy": {
+    "name": "basic_parallel",
+    "description": "基础并行策略，所有执行器使用相同提示",
+    "confidence_thresholds": {
+      "combined_threshold": 0.7,
+      "reviewer_threshold": 0.6,
+      "expert_activation": 0.7
+    }
+  },
+  "usage_notes": [
+    "添加 role 字段用于自动识别模型类型",
+    "rACC_STANDARD: 标准执行器",
+    "rACC_ALTERNATIVE: 替代执行器",
+    "rDLPFC_UPGRADER: 专家模型",
+    "rTPJ_REVIEWER: 评审器"
+  ]
+}
