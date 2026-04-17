@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from .base import LLMConfig, Message, MessageRole
+from .base import LLMConfig
 from .factory import LLMFactory
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,10 @@ def _resolve_env_vars_in_dict(d: Dict) -> Dict:
         elif isinstance(v, dict):
             result[k] = _resolve_env_vars_in_dict(v)
         elif isinstance(v, list):
-            result[k] = [_resolve_env_vars(item) if isinstance(item, str) else item for item in v]
+            result[k] = [
+                _resolve_env_vars(item) if isinstance(item, str) else item
+                for item in v
+            ]
         else:
             result[k] = v
     return result
@@ -90,7 +93,7 @@ class ConfigLoader:
         初始化配置加载器
 
         Args:
-            config_path: 配置文件路径，默认为项目根目录下的 config/llm_config.json
+            config_path: 配置文件路径
         """
         if config_path is None:
             # 默认搜索路径
@@ -235,9 +238,11 @@ class ConfigLoader:
         return model_key in self._config.get("models", {})
 
 
-def load_llm_from_config(config_loader: ConfigLoader,
-                         model_key: str,
-                         instance_id: str) -> Optional[BaseLLM]:
+def load_llm_from_config(
+    config_loader: ConfigLoader,
+    model_key: str,
+    instance_id: str
+) -> Any:  # noqa: F821
     """
     从配置创建 LLM 实例
 
@@ -258,10 +263,12 @@ def load_llm_from_config(config_loader: ConfigLoader,
     return None
 
 
-def create_llm_from_json(config_path: str,
-                         models: Dict[str, Any],
-                         instance_id: str,
-                         provider: str = "openai") -> LLMFactory:
+def create_llm_from_json(
+    config_path: str,
+    models: Dict[str, Any],
+    instance_id: str,
+    provider: str = "openai"
+) -> LLMFactory:
     """
     从 JSON 配置创建 LLM 实例
 

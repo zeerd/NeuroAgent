@@ -11,14 +11,22 @@ OpenAI SDK 适配器
 import logging
 import os
 import time
-from typing import List, Dict, Any, Iterator, Optional
+from typing import List, Dict, Iterator
 
 from openai import OpenAI, AzureOpenAI, Stream
 from openai.types.chat import ChatCompletion, ChatCompletionChunk
 
-from .base import BaseLLM, LLMConfig, LLMResponse, Message, MessageRole
+from .base import BaseLLM, LLMConfig, LLMResponse, Message as FrameworkMessage
+
 
 logger = logging.getLogger(__name__)
+
+
+class Message:
+    """转换消息到 OpenAI 格式"""
+    def __init__(self, role: str, content: str):
+        self.role = role
+        self.content = content
 
 
 class OpenAILLM(BaseLLM):
@@ -38,8 +46,8 @@ class OpenAILLM(BaseLLM):
         Args:
             config: LLM 配置对象
         """
-        self._client: Optional[OpenAI] = None
-        self._azure: bool = False
+        self._client = None
+        self._azure = False
         self._initialized = False
 
         super().__init__(config)
@@ -82,11 +90,11 @@ class OpenAILLM(BaseLLM):
 
         self._initialized = True
 
-    def _to_openai_messages(self, messages: List[Message]) -> List[Dict[str, str]]:
+    def _to_openai_messages(self, messages: List[FrameworkMessage]) -> List[Dict[str, str]]:
         """转换消息格式到 OpenAI 格式"""
         return [msg.to_dict() for msg in messages]
 
-    def _call(self, messages: List[Message]) -> LLMResponse:
+    def _call(self, messages: List[FrameworkMessage]) -> LLMResponse:
         """
         同步调用 OpenAI API
 
@@ -102,17 +110,14 @@ class OpenAILLM(BaseLLM):
         if not self._client:
             raise RuntimeError("Client not initialized")
 
-        logger.info(f"[OPENAI] Sending request to model: {self.model_id}")
-        logger.info(f"[OPENAI] Messages: {len(messages)} messages")
-        for i, msg in enumerate(messages):
-            logger.info(f"[OPENAI] Message {i} [{msg.role.value}]: {msg.content}...")
+        logger.info(f"[OPENAI] Sending request to: {self.model_id}")
 
         # 构建请求参数
         params = {
             "model": self.model_id,
             "messages": self._to_openai_messages(messages),
-            "temperature": self.config.temperature if self.config.temperature else 0.7,
-            "top_p": self.config.top_p if self.config.top_p else 1.0,
+            "temperature": self.config.temperature or 0.7,
+            "top_p": self.config.top_p or 1.0,
             "max_tokens": self.config.max_tokens,
             "frequency_penalty": self.config.frequency_penalty,
             "presence_penalty": self.config.presence_penalty,
@@ -135,12 +140,13 @@ class OpenAILLM(BaseLLM):
             latency = time.time() - start_time
 
             logger.info(f"[OPENAI] Model: {response.model}")
-            logger.info(f"[OPENAI] Tokens: prompt={response.usage.prompt_tokens}, completion={response.usage.completion_tokens}, total={response.usage.total_tokens}")
-            logger.info(f"[OPENAI] Finish reason: {response.choices[0].finish_reason}")
+            logger.info(f"[OPENAI] Finish: {response.choices[0].finish_reason}")
             logger.info(f"[OPENAI] Latency: {latency:.2f}s")
 
             content = response.choices[0].message.content or ""
-            logger.info(f"[OPENAI] Response sent to framework: {len(content)} chars")
+            logger.info(f"[OPENAI] Response length: {len(content)} chars")
+            if content:
+                logger.info(f"[OPENAI] Response content:\n{content}")
 
             return LLMResponse(
                 success=True,
@@ -154,20 +160,14 @@ class OpenAILLM(BaseLLM):
                 finish_reason=response.choices[0].finish_reason
             )
 
-        except Exception as e:
+        except Exception:
             latency = time.time() - start_time
-            logger.error(f"[OPENAI] API call failed after {latency:.2f}s: {e}")
-            return LLMResponse.from_error(str(e), self.model_id)
+            logger.error(f"[OPENAI] Failed after {latency:.2f}s")
+            return LLMResponse.from_error("API call failed", self.model_id)
 
-    async def _async_call(self, messages: List[Message]) -> LLMResponse:
+    async def _async_call(self, messages: List[FrameworkMessage]) -> LLMResponse:
         """
         异步调用 OpenAI API
-
-        Args:
-            messages: 消息列表
-
-        Returns:
-            LLM 响应
         """
         if not self._initialized:
             raise RuntimeError("LLM not initialized")
@@ -213,7 +213,7 @@ class OpenAILLM(BaseLLM):
             logger.error(f"Async API call failed: {e}")
             return LLMResponse.from_error(str(e), self.model_id)
 
-    def _stream_call(self, messages: List[Message]) -> Iterator[str]:
+    def _stream_call(self, messages: List[FrameworkMessage]) -> Iterator[str]:
         """
         流式调用 OpenAI API
 
@@ -259,7 +259,7 @@ class OpenAILLM(BaseLLM):
             logger.error(f"Stream API call failed: {e}")
             yield f"[ERROR] {e}"
 
-    def count_tokens(self, messages: List[Message]) -> int:
+    def count_tokens(self, messages: List[FrameworkMessage]) -> int:
         """
         计算 token 数量（估算）
 
@@ -269,7 +269,6 @@ class OpenAILLM(BaseLLM):
         Returns:
             估计的 token 数量
         """
-        # 简单估算：每 4 个字符 ≈ 1 个 token
         total_chars = sum(len(msg.content) for msg in messages)
         return max(1, total_chars // 4)
 
@@ -290,7 +289,6 @@ class OpenAILLM(BaseLLM):
     def close(self):
         """关闭客户端连接"""
         if self._client:
-            # OpenAI SDK 自动管理连接，不需要显式关闭
             pass
         self._initialized = False
 

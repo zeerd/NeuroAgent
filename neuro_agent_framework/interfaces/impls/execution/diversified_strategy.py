@@ -12,9 +12,9 @@ from typing import List, Dict
 import time
 
 from .base_strategy import ExecutionStrategy
-from ..core.dataclasses import RegisteredModel, ModelResult
-from ..core.enums import ModelRole
-from ..llm.base import Message, MessageRole
+from neuro_agent_framework.core.dataclasses import RegisteredModel, ModelResult
+from neuro_agent_framework.core.enums import ModelRole
+from neuro_agent_framework.llm.base import Message, MessageRole
 
 
 logger = logging.getLogger(__name__)

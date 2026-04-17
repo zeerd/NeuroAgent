@@ -1,0 +1,13 @@
+【专家升级任务】
+
+【原始请求】
+{{ request }}
+
+【执行器的初步分析结果】
+{% for r in results %}
+---
+模型：{{ r.model_name }} ({{ r.role.value }})
+{{ r.output }}
+{% endfor %}
+
+请给出专业、深入的分析和解答。

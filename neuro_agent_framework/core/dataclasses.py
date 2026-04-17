@@ -5,7 +5,6 @@ Core Data Classes
 
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
-from datetime import datetime
 import time
 
 
@@ -13,7 +12,7 @@ import time
 class RegisteredModel:
     """
     注册模型配置
-    
+
     用于表示一个已注册的 AI 模型及其属性
     """
     model_id: str                         # 唯一标识
@@ -27,7 +26,7 @@ class RegisteredModel:
     config: Dict[str, Any] = field(default_factory=dict)
     is_active: bool = True                # 是否活跃
     weight: float = 1.0                   # 在并行执行中的权重
-    
+
     def __str__(self):
         roles = [self.primary_role.value] + self.optional_roles
         return f"{self.name} [{', '.join(roles)}]"
@@ -37,7 +36,7 @@ class RegisteredModel:
 class ModelResult:
     """
     模型执行结果
-    
+
     用于记录单个模型执行的完整结果
     """
     model_id: str                         # 模型 ID
@@ -54,7 +53,7 @@ class ModelResult:
 class TaskResult:
     """
     任务整体结果
-    
+
     用于记录整个框架执行任务的最终结果
     """
     success: bool                         # 执行是否成功

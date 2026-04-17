@@ -1,130 +1,142 @@
 """
-测试 NeuroAgent Framework 初始化
+测试 Framework V2 - 接口驱动的架构
+
+测试场景：
+1. 高一致性场景（Reviewer 0.95）
+2. 低一致性场景（Reviewer 0.40）
+
+确保：
+- 接口正确使用
+- 真实数据流
+- 决策逻辑正确
 """
 
 import pytest
-from unittest.mock import MagicMock, Mock
-from neuro_agent_framework.framework.framework import NeuroAgentFramework
-from neuro_agent_framework.framework.config import FrameworkConfig
-from neuro_agent_framework.strategy.basic_strategy import BasicParallelStrategy
+import sys
+sys.path.insert(0, '..')
+
+from neuro_agent_framework.interfaces.execution_strategy import IExecutionStrategy
+from neuro_agent_framework.interfaces.reviewer import IReviewer
+from neuro_agent_framework.interfaces.confidence_calculator import IConfidenceCalculator
+from neuro_agent_framework.interfaces.impls.execution.basic_parallel_strategy import BasicParallelStrategy
+from neuro_agent_framework.interfaces.impls.reviewer.llm_reviewer import LLMBasedReviewer
+from neuro_agent_framework.interfaces.impls.confidence.placeholder_confidence_calculator import PlaceholderConfidenceCalculator
+from neuro_agent_framework.core.dataclasses import TaskResult, ModelResult, RegisteredModel
 from neuro_agent_framework.core.enums import ModelType, ModelRole
-from neuro_agent_framework.core.dataclasses import RegisteredModel, ModelResult, TaskResult
-from neuro_agent_framework.llm.base import BaseLLM, LLMResponse
-from neuro_agent_framework.registry.model_registry import ModelRegistry
-from conftest import registry_with_executors
 
-class TestNeuroAgentFrameworkInit:
-    """测试框架初始化"""
 
-    @pytest.fixture
-    def mock_registry(self):
-        """创建空注册表"""
-        return ModelRegistry()
+class TestFrameworkInterface:
+    """测试 v2 版本的接口使用"""
 
-    @pytest.fixture
-    def registry_with_executors(self, mock_registry):
-        """创建包含执行器的注册表"""
-        mock = MagicMock(spec=BaseLLM)
-        mock.chat = Mock(return_value=Mock(spec=LLMResponse))
-
-        # 注册至少 2 个执行器
-        for i, role in enumerate([ModelRole.rACC_STANDARD, ModelRole.rACC_ALTERNATIVE]):
-            mock_registry.register(RegisteredModel(
-                model_id=f"executor{i+1}",
-                name=f"Executor{i+1}",
-                model_type=ModelType.CHEAP_EXECUTOR,
-                primary_role=role,
-                estimated_cost=0.001,
-                estimated_latency=30.0,
-                is_active=True,
-                config={}
-            ))
-
-        # 注册评审器
-        mock_registry.register(RegisteredModel(
-            model_id="reviewer",
-            name="Reviewer",
-            model_type=ModelType.CHEAP_REVIEWER,
-            primary_role=ModelRole.rTPJ_REVIEWER,
-            estimated_cost=0.0005,
-            estimated_latency=20.0,
-            is_active=True,
-            config={}
-        ))
-
-        return mock_registry
-
-    @pytest.fixture
-    def mock_reviewer_llm(self):
-        """创建 mock 评审器 LLM"""
-        mock = MagicMock(spec=BaseLLM)
-        mock.model_id = "reviewer_mock"
-        mock.role = "rTPJ_REVIEWER"
-
-        mock_response = Mock(spec=LLMResponse)
-        mock_response.success = True
-        mock_response.content = '{"evaluation": "good", "confidence": 0.75}'
-        mock_response.usage = {}
-        mock.chat.return_value = mock_response
-        return mock
-
-    def test_init_minimal(self, registry_with_executors):
-        """测试最小初始化"""
-        framework = NeuroAgentFramework(
-            model_registry=registry_with_executors,
-        )
-
-        assert framework is not None
-        assert framework.strategy is not None
-
-    def test_init_with_custom_strategy(self, registry_with_executors):
-        """测试自定义策略初始化"""
+    def test_basic_strategy_implements_interface(self):
+        """测试 BasicParallelStrategy 实现 IExecutionStrategy"""
         strategy = BasicParallelStrategy()
 
-        framework = NeuroAgentFramework(
-            model_registry=registry_with_executors,
-            execution_strategy=strategy,
+        assert isinstance(strategy, IExecutionStrategy)
+        assert strategy.get_strategy_type() == "basic_parallel"
+        assert "parallel" in strategy.get_capabilities()
+        assert strategy.should_diversify(2) is False
+
+    def test_placeholder_confidence_implements_interface(self):
+        """测试 PlaceholderConfidenceCalculator 实现 IConfidenceCalculator"""
+        calculator = PlaceholderConfidenceCalculator()
+
+        assert isinstance(calculator, IConfidenceCalculator)
+        assert calculator.get_calculator_type() == "placeholder"
+        assert calculator.is_data_driven() is False
+        assert calculator.can_calculate(1)
+
+    def test_interface_compatible(self):
+        """测试接口兼容性"""
+        # 可以互换使用任何实现
+        strategy1 = BasicParallelStrategy()
+
+        # 支持多态调用
+        assert isinstance(strategy1, IExecutionStrategy)
+
+        # 可以调用接口方法
+        result = strategy1.get_strategy_type()
+        assert result in ["basic_parallel"]
+
+
+class TestConfidenceCalculationFlow:
+    """测试置信度计算流程"""
+
+    def test_high_consistency_no_expert_needed(self):
+        """
+        测试高一致性场景
+        Reviewer 评分 0.95, 应不触发专家
+        """
+        calculator = PlaceholderConfidenceCalculator()
+
+        # 模拟 Reviewer 的高一致性评分
+        review_result = {
+            'confidence': 0.95,
+            'needs_expert': False,
+            'combined_answer': '综合答案'
+        }
+
+        # 模拟中等质量的任务
+        confidence = calculator.compute(
+            [],
+            {'complexity': 0.5},
+            review_result
         )
 
-        assert framework.strategy == strategy
+        assert confidence['overall'] >= 0.7
+        assert confidence['needs_expert'] is False, "高一致性不应触发专家"
 
+    def test_low_consistency_with_low_quality_triggers_expert(self):
+        """
+        测试低一致性 + 低质量场景
+        Reviewer 评分 0.40, 应触发专家
+        """
+        calculator = PlaceholderConfidenceCalculator()
 
-class TestFrameworkValidation:
-    """测试框架验证"""
+        review_result = {
+            'confidence': 0.40,
+            'needs_expert': True,
+            'combined_answer': '综合答案'
+        }
 
-    def test_framework_requires_registry(self):
-        """测试框架要求注册表"""
-        with pytest.raises(TypeError):
-            NeuroAgentFramework()
-
-
-class TestFrameworkBasicOperations:
-    """测试框架基本操作"""
-
-    @pytest.fixture
-    def framework(self, registry_with_executors):
-        """创建框架实例"""
-        return NeuroAgentFramework(
-            model_registry=registry_with_executors,
+        confidence = calculator.compute(
+            [],
+            {'complexity': 0.5},
+            review_result
         )
 
-    def test_framework_initialization(self, framework):
-        """测试框架初始化"""
-        assert framework is not None
-        assert hasattr(framework, 'strategy')
-        assert hasattr(framework, 'registry')
-        assert framework.registry is not None
+        assert confidence['needs_expert'] is True, "低一致性应触发专家升级"
+        assert confidence['details']['consistency']['score'] == 0.40
 
-    def test_framework_has_execute_method(self, framework):
-        """测试框架有 execute 方法"""
-        assert hasattr(framework, 'execute')
-        assert callable(framework.execute)
+    def test_data_flows_correctly(self):
+        """测试数据正确传递"""
+        calculator = PlaceholderConfidenceCalculator()
 
-    def test_framework_has_reviewer(self, framework):
-        """测试框架有 reviewer 属性"""
-        assert hasattr(framework, 'reviewer')
-        assert framework.reviewer is not None
+        review_result = {'confidence': 0.85}
+        result = calculator.compute([], {'complexity': 0.3}, review_result)
+
+        # 验证 Reviewer 的评分传入
+        assert result['details']['consistency']['score'] == 0.85
+        assert result['confidence_source']['is_data_driven'] is False
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+class TestImplementationDetails:
+    """测试实现细节"""
+
+    def test_no_default_values(self):
+        """测试没有使用默认值 0.5"""
+        calculator = PlaceholderConfidenceCalculator()
+
+        # 使用真实 Reviewer 评分
+        review_result = {'confidence': 0.90}
+        result = calculator.compute([], {}, review_result)
+
+        # 应使用真实值，而非默认 0.5
+        assert result['details']['consistency']['score'] == 0.90
+
+        # 覆盖率和质量应基于分析
+        assert 'output_length_analysis' in result['details']['coverage']['source']
+
+
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])

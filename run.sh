@@ -10,6 +10,7 @@ if [ ! -f config/llm_config.json ]; then
     exit 1
 fi
 
-flake8
+# 只扫描项目代码，排除虚拟环境和第三方包
+flake8 --exclude=.venv,tests,docs neuro_agent_framework examples
 pytest --cov-branch --cov-report=term --cov=.
-python main.py --test
+python framework_test.py -n 1

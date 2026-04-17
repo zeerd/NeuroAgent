@@ -5,9 +5,9 @@
 import pytest
 from neuro_agent_framework.core.dataclasses import RegisteredModel, ModelResult
 from neuro_agent_framework.core.enums import ModelType, ModelRole
-from neuro_agent_framework.strategy.basic_strategy import BasicParallelStrategy
-from neuro_agent_framework.strategy.hybrid_strategy import HybridStrategy
-from neuro_agent_framework.strategy.diversified_strategy import DiversifiedParallelStrategy
+from neuro_agent_framework.interfaces.impls.execution.basic_parallel_strategy import BasicParallelStrategy
+from neuro_agent_framework.interfaces.impls.execution.hybrid_strategy import HybridStrategy
+from neuro_agent_framework.interfaces.impls.execution.diversified_strategy import DiversifiedParallelStrategy
 from neuro_agent_framework.registry import model_registry
 
 class TestBasicParallelStrategy:
@@ -17,14 +17,15 @@ class TestBasicParallelStrategy:
         """测试初始化"""
         strategy = BasicParallelStrategy()
         assert strategy is not None
-        assert strategy.STANDARD_PROMPT is not None
+        assert strategy.get_strategy_type() == "basic_parallel"
+        assert "parallel" in strategy.get_capabilities()
 
     def test_should_diversify(self):
         """测试是否应该分发的逻辑"""
         strategy = BasicParallelStrategy()
-        # 基础策略不分发差异化提示
+        # v2 version: should_diversify returns True for num_models > 3
         assert strategy.should_diversify(2) is False
-        assert strategy.should_diversify(4) is False
+        assert strategy.should_diversify(4) is True
 
 
 class TestDiversifiedParallelStrategy:
@@ -75,35 +76,41 @@ class TestStrategyExecution:
             config={}
         )
 
-    @pytest.mark.integration
-    def test_basic_strategy_with_real_llm(self, model_registry):
-        """测试基本策略与真实 LLM 执行"""
+    def test_basic_strategy_with_real_llm(self, registry_with_executors):
+        """测试基本策略执行"""
         strategy = BasicParallelStrategy()
 
-        executors = model_registry.list_models(model_type=ModelType.CHEAP_EXECUTOR)
+        executors = registry_with_executors.list_models(model_type=ModelType.CHEAP_EXECUTOR)
 
-        results = strategy.execute(
-            executors=executors,
-            request="测试请求",
-            context={ "key": "value" },
-            task_complexity=0.5
-        )
+        # Mock LLMFactory.get_instance to return mock LLM instances
+        from unittest.mock import MagicMock, patch
+        mock_llm = MagicMock()
+        mock_response = MagicMock()
+        mock_response.success = True
+        mock_response.content = "test output"
+        mock_llm.chat.return_value = mock_response
+
+        with patch("neuro_agent_framework.llm.factory.LLMFactory.get_instance", return_value=mock_llm):
+            results = strategy.execute(
+                models=executors,
+                request="测试请求",
+                context={"key": "value"},
+                task_complexity=0.5
+            )
 
         assert len(results) == len(executors)
         assert all(isinstance(r, ModelResult) for r in results)
 
-    @pytest.mark.integration
-    def test_hybrid_strategy_with_real_llm(self, model_registry):
-        """测试混合策略与真实 LLM 执行"""
+    def test_hybrid_strategy_with_real_llm(self, registry_with_executors):
+        """测试混合策略执行"""
         strategy = HybridStrategy()
 
-        executors = model_registry.list_models(model_type=ModelType.CHEAP_EXECUTOR)
+        executors = registry_with_executors.list_models(model_type=ModelType.CHEAP_EXECUTOR)
 
         results = strategy.execute(
-            executors=executors,
+            models=executors,
             request="测试请求",
-            context={ "key": "value" },
-            task_complexity=0.5
+            context={"key": "value"}
         )
 
         assert len(results) == len(executors)

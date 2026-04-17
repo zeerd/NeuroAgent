@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import MagicMock
 from neuro_agent_framework.core.dataclasses import TaskResult, ModelResult
 from neuro_agent_framework.core.enums import ModelRole
-from neuro_agent_framework.reviewer.reviewer import Reviewer
+from neuro_agent_framework.interfaces.impls.reviewer.llm_reviewer import LLMBasedReviewer as Reviewer
 from neuro_agent_framework.llm.base import BaseLLM
 
 

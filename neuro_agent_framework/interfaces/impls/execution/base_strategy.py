@@ -6,7 +6,7 @@ ExecutionStrategy - 执行策略基类
 from abc import ABC, abstractmethod
 from typing import List, Dict
 
-from ..core.dataclasses import RegisteredModel, ModelResult
+from neuro_agent_framework.core.dataclasses import RegisteredModel, ModelResult
 
 
 class ExecutionStrategy(ABC):

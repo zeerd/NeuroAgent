@@ -12,20 +12,20 @@ from ..registry.model_registry import ModelRegistry
 class FrameworkConfig:
     """
     框架配置生成器
-    
+
     提供常用的配置组合模板
     """
-    
+
     @staticmethod
     def create_simple_config():
         """
         创建简单配置（2 个执行器 + 1 个评审 + 1 个专家）
-        
+
         Returns:
             ModelRegistry: 已配置的注册中心
         """
         registry = ModelRegistry()
-        
+
         # 添加执行器
         registry.register(RegisteredModel(
             model_id="model_a",
@@ -35,7 +35,7 @@ class FrameworkConfig:
             estimated_cost=0.001,
             estimated_latency=2.0
         ))
-        
+
         registry.register(RegisteredModel(
             model_id="model_b",
             name="Claude-3.5-Sonnet-B",
@@ -44,7 +44,7 @@ class FrameworkConfig:
             estimated_cost=0.001,
             estimated_latency=2.2
         ))
-        
+
         # 添加评审
         registry.register(RegisteredModel(
             model_id="model_c",
@@ -54,7 +54,7 @@ class FrameworkConfig:
             estimated_cost=0.001,
             estimated_latency=1.8
         ))
-        
+
         # 添加专家
         registry.register(RegisteredModel(
             model_id="model_expert",
@@ -64,19 +64,19 @@ class FrameworkConfig:
             estimated_cost=0.02,
             estimated_latency=5.0
         ))
-        
+
         return registry
-    
+
     @staticmethod
     def create_advanced_config():
         """
         创建高级配置（4 个执行器 + 1 个评审 + 1 个专家）
-        
+
         Returns:
             ModelRegistry: 已配置的注册中心
         """
         registry = ModelRegistry()
-        
+
         # 多视角执行器
         roles = [
             (ModelRole.rACC_STANDARD, "GPT-4o-Mini-A"),
@@ -84,7 +84,7 @@ class FrameworkConfig:
             (ModelRole.rACC_DIVERSE, "Claude-3.5-A"),
             (ModelRole.rACC_CRITICAL, "Claude-3.5-B"),
         ]
-        
+
         for i, (role, name) in enumerate(roles, 1):
             registry.register(RegisteredModel(
                 model_id=f"model_a{i}",
@@ -94,7 +94,7 @@ class FrameworkConfig:
                 estimated_cost=0.001,
                 estimated_latency=2.0
             ))
-        
+
         # 评审
         registry.register(RegisteredModel(
             model_id="model_c",
@@ -104,7 +104,7 @@ class FrameworkConfig:
             estimated_cost=0.001,
             estimated_latency=2.0
         ))
-        
+
         # 专家
         registry.register(RegisteredModel(
             model_id="model_expert",
@@ -114,5 +114,5 @@ class FrameworkConfig:
             estimated_cost=0.02,
             estimated_latency=5.0
         ))
-        
+
         return registry

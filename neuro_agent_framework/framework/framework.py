@@ -1,270 +1,171 @@
 """
-NeuroAgentFramework - 主框架实现
+NeuroAgent Framework - 核心框架 v2
 
-整合所有模块，提供统一的服务接口
+演示接口驱动的设计模式
 """
 
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Type
 from datetime import datetime
 
-from ..core.enums import ModelType, ModelRole
-from ..core.dataclasses import RegisteredModel, ModelResult, TaskResult
-from ..registry.model_registry import ModelRegistry
-from ..strategy.base_strategy import ExecutionStrategy
-from ..strategy.hybrid_strategy import HybridStrategy
-from ..calculator.neuro_confidence import NeuroConfidenceCalculator
-from ..reviewer.reviewer import Reviewer
+from ..interfaces.execution_strategy import IExecutionStrategy
+from ..interfaces.reviewer import IReviewer
+from ..interfaces.confidence_calculator import IConfidenceCalculator
+from ..core.dataclasses import TaskResult, ModelResult, RegisteredModel
+
 
 logger = logging.getLogger(__name__)
 
 
 class NeuroAgentFramework:
     """
-    NeuroAgent Framework v2.0
+    NeuroAgent Framework 核心类 v2
 
-    神经科学启发的灵活多模型协作框架
-
-    设计理念：
-    1. Harness Engineering: 多模型并行 + 评审
-    2. The Advisor Strategy: 置信度驱动的专家升级
-    3. 神经心理学: rACC/rTPJ/rDLPFC 三脑机制
+    核心改进：
+    - 使用接口而非具体类
+    - 支持运行时配置各组件
+    - 清晰的数据流设计
     """
 
-    def __init__(self,
-                 model_registry: ModelRegistry,
-                 execution_strategy: ExecutionStrategy = None,
-                 thresholds: Dict = None):
-        """初始化框架"""
-        logger.info("🔧 NeuroAgent Framework initializing...")
-
-        self.registry = model_registry
-        self.strategy = execution_strategy or HybridStrategy()
-        self.thresholds = thresholds or {
-            'combined_threshold': 0.80,
-            'consistency_threshold': 0.75,
-            'completeness_threshold': 0.70,
-            'reliability_threshold': 0.80
-        }
-
-        self.reviewer = None
-        self.neuro_calculator = None
-
-        # 验证配置并初始化组件
-        self._validate_setup()
-
-        logger.info("✅ NeuroAgent Framework initialized successfully")
-
-    def _validate_setup(self):
-        """验证配置有效性"""
-        executors = self.registry.list_models(model_type=ModelType.CHEAP_EXECUTOR)
-
-        if len(executors) < 2:
-            raise ValueError(f"需要至少 2 个执行模型，当前只有 {len(executors)} 个")
-
-        reviewers = self.registry.list_models(model_type=ModelType.CHEAP_REVIEWER)
-        if not reviewers:
-            raise ValueError("必须注册至少一个评审模型 (ModelType.CHEAP_REVIEWER)")
-
-        # 初始化组件
-        self.reviewer = Reviewer(reviewers[0])
-        self.neuro_calculator = NeuroConfidenceCalculator(self.thresholds)
-
-        logger.info(f"✓ Setup validated: {len(executors)} executors, {reviewers[0].name} as reviewer")
-
-    def execute(self,
-               request: str,
-               task_context: Dict = None,
-               task_complexity: float = None) -> TaskResult:
+    def __init__(
+        self,
+        executor_models: List[RegisteredModel],
+        expert_model: RegisteredModel,
+        execution_strategy: IExecutionStrategy,
+        reviewer: IReviewer,
+        confidence_calculator: IConfidenceCalculator
+    ):
         """
-        执行完整的工作流程
-
-        包含 4 个阶段:
-        1. PHASE 1: 模型并行执行
-        2. PHASE 2: 评审与综合
-        3. PHASE 3: 神经置信度评估
-        4. PHASE 4: 决策与专家升级 (如有必要)
+        初始化框架
 
         Args:
-            request: 用户请求
-            task_context: 任务背景信息
-            task_complexity: 任务复杂度 (0-1)
-
-        Returns:
-            TaskResult: 任务执行结果
+            executor_models: 执行器模型列表
+            expert_model: 专家模型
+            execution_strategy: 执行策略（接口）
+            reviewer: 评审器（接口）
+            confidence_calculator: 置信度计算器（接口）
         """
-        import time
-        start_time = time.time()
+        self.executor_models = executor_models
+        self.expert_model = expert_model
 
-        if task_context is None:
-            task_context = {}
+        self.execution_strategy = execution_strategy
+        self.reviewer = reviewer
+        self.confidence_calculator = confidence_calculator
 
-        if task_complexity is None:
-            task_complexity = 0.5
+        logger.info(f"✅ NeuroAgent Framework V2 initialized")
+        logger.info(f"   执行器：{len(executor_models)} 个")
+        logger.info(f"   策略类型：{execution_strategy.get_strategy_type()}")
+        logger.info(f"   评审器：{reviewer.get_reviewer_type()}")
+        logger.info(f"   置信度计算器：{confidence_calculator.get_calculator_type()}")
 
-        logger.info("\n" + "="*70)
-        logger.info("🚀 NEUROAGENT FRAMEWORK v2.0 - EXECUTION START")
-        logger.info("="*70)
-        logger.info(f"Request: {request}...")
-        logger.info(f"Context: {task_context}")
-        logger.info(f"Complexity: {task_complexity}")
-        logger.info("="*70)
+    def _get_llm_for_reviewer(self):
+        """为评审器获取 LLM 实例"""
+        # 优先使用 reviewer 自己的 model
+        if hasattr(self.reviewer, 'model') and self.reviewer.model and self.reviewer.model.config:
+            llm = self.reviewer.model.config.get('llm_instance')
+            if llm:
+                return llm
+        # 回退：从执行器/专家模型获取
+        for model in self.executor_models:
+            if hasattr(model, 'config') and model.config and 'llm_instance' in model.config:
+                llm = model.config['llm_instance']
+                if llm:
+                    return llm
+        if hasattr(self.expert_model, 'config') and self.expert_model.config and 'llm_instance' in self.expert_model.config:
+            return self.expert_model.config.get('llm_instance')
+        return None
 
-        # ===== PHASE 1: 模型并行执行 =====
-        logger.info("\n📍 PHASE 1: Multi-Model Execution")
-        logger.info("="*70)
+    def execute(self, request: str, context: Dict[str, Any] = None) -> TaskResult:
+        """
+        执行任务的核心流程
 
-        phase1_start = time.time()
+        1. 使用策略执行所有模型
+        2. 使用 Reviewer 评审
+        3. 使用 ConfidenceCalculator 评估
+        4. 决定是否升级专家
+        """
+        if context is None:
+            context = {}
 
-        results = self.strategy.execute(self.registry.list_models(model_type=ModelType.CHEAP_EXECUTOR), request, task_context)
+        start_time = datetime.now()
+        complexity = context.get('complexity', 0.5)
 
-        phase1_duration = time.time() - phase1_start
+        logger.info("\n" + "="*80)
+        logger.info("🚀 EXECUTION START")
+        logger.info(f"  任务：{request}")
+        logger.info(f"  复杂度：{complexity}")
+        logger.info("="*80)
 
-        logger.info(f"\nPhase 1 complete: {len(results)} results in {phase1_duration:.2f}s")
+        # ===== PHASE 1: 执行策略 =====
+        logger.info("\n📍 PHASE 1: Execution")
+        results = self.execution_strategy.execute(
+            self.executor_models,
+            request,
+            context,
+            complexity
+        )
+        logger.info(f"Phase 1 completed: {len(results)} results")
 
-        for result in results:
-            logger.info(f"\n  ✓ {result.model_name} [{result.role.value}]")
-            logger.info(f"      Output: {result.output}...")
-            logger.info(f"      Latency: {result.latency:.2f}s")
+        # ===== PHASE 2: 评审合成 =====
+        logger.info("\n📍 PHASE 2: Review & Synthesis")
+        review_result = self.reviewer.review(results, request, self._get_llm_for_reviewer())
+        logger.info(f"  Reviewer confidence: {review_result['confidence']}")
 
-        # ===== PHASE 2: 评审与综合 =====
-        logger.info("\n📍 PHASE 2: Review and Synthesis")
-        logger.info("="*70)
+        # ===== PHASE 3: 置信度评估 =====
+        logger.info("\n📍 PHASE 3: Confidence Assessment")
+        confidence_result = self.confidence_calculator.compute(
+            results,
+            {'complexity': complexity},
+            review_result
+        )
+        logger.info(f"  Overall: {confidence_result['overall']:.2f}")
+        logger.info(f"  Needs expert: {confidence_result['needs_expert']}")
 
-        phase2_start = time.time()
-
-        # 获取 reviewer 的 LLM 实例
-        reviewer_llm = None
-        for model in self.registry.list_models(model_type=ModelType.CHEAP_REVIEWER):
-            reviewer_llm = model.config.get('llm_instance')
-            break
-
-        review_result = self.reviewer.review(results, request, reviewer_llm)
-
-        phase2_duration = time.time() - phase2_start
-
-        logger.info(f"\nReview complete: confidence={review_result['confidence']:.2f}")
-        logger.info(f"Combined answer: {review_result['combined_answer']}...")
-
-        # ===== PHASE 3: 神经置信度评估 =====
-        logger.info("\n📍 PHASE 3: Neuro Confidence Assessment")
-        logger.info("="*70)
-
-        phase3_start = time.time()
-
-        # 调用置信度计算器
-        task_complexity_context = {'complexity': task_complexity}
-        confidence_breakdown = self.neuro_calculator.compute(results, task_complexity_context)
-
-        phase3_duration = time.time() - phase3_start
-
-        logger.info("\nConfidence Assessment (Neuro-Centric):")
-        logger.info(f"  Overall: {confidence_breakdown['overall']:.2f}")
-        logger.info(f"  Needs upgrade: {confidence_breakdown['needs_upgrade']}")
-
-        for component, details in confidence_breakdown.get('details', {}).items():
-            logger.info(f"\n  {component} ({details['name']}): {details['score']:.2f}")
-            logger.info(f"      Threshold: {details['threshold']:.2f}")
-            logger.info(f"      Passed: {details['passed']}")
-
-        # ===== PHASE 4: 专家升级 =====
-        needs_expert = confidence_breakdown['needs_upgrade']
+        # ===== PHASE 4: 专家升级决策 =====
+        needs_expert = confidence_result['needs_expert']
+        used_expert = False
 
         if needs_expert:
-            logger.info("\n📍 PHASE 4: Quality Assessment and Upgrade Decision")
-            logger.info("="*70)
-            logger.info("⚠️  Expert upgrade required - calling expert model...")
+            logger.info("\n⚡ TRIGGERING EXPERT UPGRADE")
+            logger.info(f"  使用专家模型：{self.expert_model.name}")
 
-            phase4_start = time.time()
+            # 调用专家执行
+            from ..llm.factory import LLMFactory
+            expert_llm = LLMFactory.get_instance(self.expert_model.model_id)
+            if expert_llm is None:
+                expert_llm = LLMFactory.get_instance(f"{self.expert_model.model_id}_instance")
+            if expert_llm:
+                expert_response = expert_llm.chat(request)
 
-            # 调用专家模型
-            expert_results = self._call_expert_model(request, results)
+                if expert_response.success:
+                    answers = review_result['combined_answer'] + "\n\n---\n专家回复:\n" + expert_response.content
 
-            phase4_duration = time.time() - phase4_start
+                    used_expert = True
+                    logger.info(f"  专家完成，tokens: {expert_response.usage}")
+                else:
+                    logger.error(f"  专家执行失败：{expert_response.error}")
+                    answers = review_result['combined_answer']  # 回退到 Reviewer 答案
+            else:
+                logger.error("  无法获取专家 LLM 实例")
+                answers = review_result['combined_answer']
+        else:
+            logger.info("\n✅ No expert upgrade needed")
+            answers = review_result['combined_answer']
 
-            logger.info("\nExpert complete in " + f"{phase4_duration:.2f}s")
-            logger.info(f"Expert output: {expert_results[0].output}...")
+        total_time = (datetime.now() - start_time).total_seconds()
 
-            # 重新评估 - 传递 reviewer 的 LLM
-            final_review = self.reviewer.review(expert_results, request, reviewer_llm)
-            logger.info(f"\nFinal review: confidence={final_review['confidence']:.2f}")
-
-        total_time = time.time() - start_time
-
-        # 返回结果
         return TaskResult(
             success=True,
-            combined_answer=review_result['combined_answer'],
-            confidence=review_result['confidence'],
+            combined_answer=answers,
+            confidence=confidence_result['overall'],
             num_executors=len(results),
-            used_expert=needs_expert,
+            used_expert=used_expert,
             total_time=total_time,
             metadata={
-                'phase1_duration': phase1_duration,
-                'phase2_duration': phase2_duration,
-                'phase3_duration': phase3_duration,
-                'confidence_breakdown': confidence_breakdown,
-                'total_steps': 4 if needs_expert else 3
+                'execution_strategy': self.execution_strategy.get_strategy_type(),
+                'reviewer_type': self.reviewer.get_reviewer_type(),
+                'conf_calculator_type': self.confidence_calculator.get_calculator_type(),
+                'reviewer_confidence': review_result['confidence'],
+                'task_complexity': complexity
             }
         )
-
-    def _call_expert_model(self, request: str, results: List[ModelResult]) -> List[ModelResult]:
-        """调用专家模型"""
-        import time
-
-        logger.info(f"\n[Expert] Calling expert model for request: {request}...")
-
-        start_time = time.time()
-
-        # 获取专家模型
-        expert_models = self.registry.list_models(model_type=ModelType.EXPERT)
-        if not expert_models:
-            logger.warning("No expert model registered!")
-            return []
-
-        expert = expert_models[0]
-        llm_instance = expert.config.get('llm_instance')
-
-        if not llm_instance:
-            logger.warning("No LLM instance found for expert model!")
-            return []
-
-        # 构建专家提示
-        expert_prompt = f"""请作为专家对以下问题进行分析和解答。
-
-【原始请求】
-{request}
-
-【执行器的初步分析结果】
-"""
-        for r in results:
-            expert_prompt += f"\n---\n模型：{r.model_name} ({r.role.value})\n{r.output}..."
-
-        expert_prompt += "\n\n请给出专业、深入的分析和解答。"
-
-        # 调用 LLM
-        from neuro_agent_framework.llm.base import Message, MessageRole
-        messages = [
-            Message(role=MessageRole.SYSTEM, content="你是一位专家级 AI，需要提供专业、深入的分析和解答。"),
-            Message(role=MessageRole.USER, content=expert_prompt)
-        ]
-
-        response = llm_instance.chat(messages)
-
-        latency = time.time() - start_time
-
-        logger.info(f"[Expert] LLM call complete: {latency:.2f}s")
-        # 处理 token 统计
-        if hasattr(response, 'usage') and hasattr(response.usage, 'total_tokens'):
-            token_count = response.usage.total_tokens
-            logger.info(f"[Expert] Tokens: {token_count}")
-        else:
-            token_count = 0
-
-        return [ModelResult(
-            model_id=expert.model_id,
-            model_name=expert.name,
-            role=expert.primary_role,
-            output=response.content,
-            latency=latency
-        )]

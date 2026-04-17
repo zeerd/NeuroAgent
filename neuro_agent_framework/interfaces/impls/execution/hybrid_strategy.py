@@ -9,10 +9,10 @@ HybridStrategy - 混合策略
 import logging
 from typing import List, Dict
 
-from .base_strategy import ExecutionStrategy
-from ..core.dataclasses import RegisteredModel, ModelResult
-from .basic_strategy import BasicParallelStrategy
-from .diversified_strategy import DiversifiedParallelStrategy
+from neuro_agent_framework.interfaces.impls.execution.base_strategy import ExecutionStrategy
+from neuro_agent_framework.core.dataclasses import RegisteredModel, ModelResult
+from neuro_agent_framework.interfaces.impls.execution.basic_strategy import BasicParallelStrategy
+from neuro_agent_framework.interfaces.impls.execution.diversified_strategy import DiversifiedParallelStrategy
 
 
 logger = logging.getLogger(__name__)

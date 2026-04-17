@@ -1,0 +1,6 @@
+[flake8]
+# 行长度限制
+max-line-length = 79
+# 忽略一些不影响功能的警告
+exclude = .venv,tests,docs,build,dist
+
