@@ -176,21 +176,21 @@ class ConfigLoader:
         # 提取配置
         config_dict = model_config.get("config", {})
 
-        # 创建 LLMConfig
+        # 创建 LLMConfig（提供默认值）
         return LLMConfig(
-            model=config_dict.get("model"),
-            api_type=config_dict.get("api_type"),
+            model=config_dict.get("model", "default"),
+            api_type=config_dict.get("api_type", "openai"),
             api_base=config_dict.get("api_base"),
             api_key=config_dict.get("api_key"),
             api_version=config_dict.get("api_version"),
-            temperature=config_dict.get("temperature"),
-            top_p=config_dict.get("top_p"),
-            max_tokens=config_dict.get("max_tokens"),
-            frequency_penalty=config_dict.get("frequency_penalty"),
-            presence_penalty=config_dict.get("presence_penalty"),
-            n=config_dict.get("n"),
-            stream=config_dict.get("stream"),
-            timeout=config_dict.get("timeout"),
+            temperature=config_dict.get("temperature", 0.7),
+            top_p=config_dict.get("top_p", 1.0),
+            max_tokens=config_dict.get("max_tokens", 4096),
+            frequency_penalty=config_dict.get("frequency_penalty", 0.0),
+            presence_penalty=config_dict.get("presence_penalty", 0.0),
+            n=config_dict.get("n", 1),
+            stream=config_dict.get("stream", False),
+            timeout=config_dict.get("timeout", 60.0),
         )
 
     def get_model_info(self, model_key: str) -> Optional[Dict[str, Any]]:
@@ -257,8 +257,13 @@ def load_llm_from_config(
     config = config_loader.get_config(model_key)
     if config:
         config.model = config.model
-        # 创建 LLM 实例
-        llm = LLMFactory.create("openai", config, instance_id)
+        
+        # 从模型信息中获取 provider（provider 在模型级别，不在 config 对象内部）
+        model_info = config_loader.get_model_info(model_key)  # 返回{"name": "...", "provider": "openai", "config": {...}, ...}
+        provider = model_info.get("provider", "openai") if model_info else "openai"
+        
+        # 创建 LLM 实例（支持动态 provider）
+        llm = LLMFactory.create(provider, config, instance_id)
         return llm
     return None
 

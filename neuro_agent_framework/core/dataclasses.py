@@ -17,18 +17,28 @@ class RegisteredModel:
     """
     model_id: str                         # 唯一标识
     name: str                             # 模型名称
-    model_type: Any                       # 模型类型 (ModelType)
-    primary_role: Any                     # 主要角色 (ModelRole)
-    optional_roles: List[Any] = field(default_factory=list)
+    model_type: int                       # 模型类型 (ModelType)
+    primary_role: int                     # 主要角色 (ModelRole)
+    optional_roles: tuple = field(default_factory=tuple)  # 使用不可变的 tuple
     estimated_cost: float = 0.001         # 估算成本/请求 ($)
     estimated_latency: float = 2.0        # 估算延迟 (秒)
-    capabilities: List[str] = field(default_factory=list)
-    config: Dict[str, Any] = field(default_factory=dict)
+    capabilities: tuple = field(default_factory=tuple)    # 使用不可变的 tuple
+    config: dict = field(default_factory=dict)            # 这仍然可变，但通常不用于 hash
     is_active: bool = True                # 是否活跃
     weight: float = 1.0                   # 在并行执行中的权重
 
+    def __hash__(self):
+        """基于 model_id 的哈希，用于字典键"""
+        return hash(self.model_id)
+
+    def __eq__(self, other):
+        """基于 model_id 的相等性比较"""
+        if not isinstance(other, RegisteredModel):
+            return False
+        return self.model_id == other.model_id
+
     def __str__(self):
-        roles = [self.primary_role.value] + self.optional_roles
+        roles = [self.primary_role.value] + [r.value for r in self.optional_roles]
         return f"{self.name} [{', '.join(roles)}]"
 
 

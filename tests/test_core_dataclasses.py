@@ -56,8 +56,8 @@ class TestRegisteredModel:
             primary_role=ModelRole.rACC_STANDARD
         )
 
-        assert model.estimated_cost == 0.001  # 默认是 0.001,不是 0.0
-        assert model.capabilities == []  # 默认
+        assert model.estimated_cost == 0.001  # 默认是 0.001，不是 0.0
+        assert model.capabilities == ()  # 默认使用 tuple
         assert model.weight == 1.0
 
 
@@ -179,7 +179,7 @@ class TestLLMConfig:
     def test_defaults(self):
         """测试默认值"""
         config = LLMConfig(model="test")
-        
+
         assert config.api_type == "openai"
         assert config.temperature == 0.7
         assert config.top_p == 1.0

@@ -12,6 +12,20 @@ from .openai_adapter import OpenAILLM
 
 logger = logging.getLogger(__name__)
 
+# 尝试导入 CopilotLLM（可选依赖）
+try:
+    from .copilot_llm_adapter import CopilotLLM, COPILOT_AVAILABLE
+    if COPILOT_AVAILABLE:
+        logger.info("✓ CopilotLLM available for registration")
+    else:
+        logger.warning("⚠ CopilotLLM not available (SDK not installed)")
+except ImportError as e:
+    logger.warning(f"CopilotLLM import failed: {e}")
+    CopilotLLM = None
+    COPILOT_AVAILABLE = False
+
+logger = logging.getLogger(__name__)
+
 
 class LLMProvider:
     """LLM 提供商标识"""
@@ -42,7 +56,14 @@ class LLMRegistry:
     def _register_default_providers(self):
         """注册默认提供者"""
         self.register_provider("openai", OpenAILLM)
-        logger.info(f"✓ Registered {len(self._providers)} default providers")
+
+        # 注册 CopilotLLM（如果可用）
+        if CopilotLLM is not None:
+            self.register_provider("copilot", CopilotLLM)
+            logger.info("✓ Registered copilot provider")
+
+        logger.debug(f"✓ Registered {len(self._providers)} default providers")
+        logger.debug(f"  Available: {self.list_providers()}")
 
     def register_provider(self, name: str, llm_class: Type[BaseLLM]):
         """注册新的 LLM 提供者
@@ -186,6 +207,12 @@ class LLMFactory:
         )
 
         return cls.create(provider, llm_config, instance_id)
+
+    @classmethod
+    def register_llm_instance(cls, instance: BaseLLM, instance_id: str):
+        """注册 LLM 实例到缓存"""
+        cls._instances[instance_id] = instance
+        logger.info(f"✓ Registered LLM instance: {instance_id}")
 
     @classmethod
     def get_instance(cls, instance_id: str) -> Optional[BaseLLM]:

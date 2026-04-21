@@ -160,10 +160,12 @@ class OpenAILLM(BaseLLM):
                 finish_reason=response.choices[0].finish_reason
             )
 
-        except Exception:
+        except Exception as e:
             latency = time.time() - start_time
-            logger.error(f"[OPENAI] Failed after {latency:.2f}s")
-            return LLMResponse.from_error("API call failed", self.model_id)
+            logger.error(f"[OPENAI] Failed after {latency:.2f}s: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            return LLMResponse.from_error(f"API call failed: {e}", self.model_id)
 
     async def _async_call(self, messages: List[FrameworkMessage]) -> LLMResponse:
         """

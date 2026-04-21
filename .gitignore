@@ -1,7 +1,10 @@
 __pycache__
 .pytest_cache
 *.egg-info/
-.venv
+.venv/
+venv/
 *.log
 .coverage
 config/llm_config.json
+config/copilot_config.json
+

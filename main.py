@@ -5,7 +5,6 @@ NeuroAgent Framework v2.0 - 接口驱动版本
 基于：
 - Harness Engineering（多模型并行 + 评审）
 - The Advisor Strategy（置信度驱动的专家升级）
-- 神经心理学（rACC/rTPJ/rDLPFC 三脑机制）
 运行方式：
     # 直接传入任务字符串
     python main.py "设计一个电商推广方案"
@@ -112,6 +111,8 @@ def create_framework_from_config(config_path: str = None) -> tuple:
     for model_key in executors:
         model_info = config_loader.get_model_info(model_key)
         llm = load_llm_from_config(config_loader, model_key, f"{model_key}_instance")
+        # 注册到 LLMFactory 以便线程获取
+        LLMFactory.register_llm_instance(llm, model_key)
         registry.register(RegisteredModel(
             model_id=model_key,
             name=model_info.get('name', model_key),
@@ -122,12 +123,17 @@ def create_framework_from_config(config_path: str = None) -> tuple:
             capabilities=model_info.get('config', {}).get('capabilities', ['推理']),
             is_active=True,
             weight=1.0,
-            config={"llm_instance": llm}
+            config={
+                'config_path': str(config_loader.config_path),
+                'llm_config': model_info.get('config', {})
+            }
         ))
         logger.info(f"✓ Registered executor: {model_key}")
     for model_key in experts:
         model_info = config_loader.get_model_info(model_key)
         llm = load_llm_from_config(config_loader, model_key, f"{model_key}_instance")
+        # 注册到 LLMFactory 以便线程获取
+        LLMFactory.register_llm_instance(llm, model_key)
         registry.register(RegisteredModel(
             model_id=model_key,
             name=model_info.get('name', model_key),
@@ -138,12 +144,17 @@ def create_framework_from_config(config_path: str = None) -> tuple:
             capabilities=model_info.get('config', {}).get('capabilities', ['复杂推理']),
             is_active=True,
             weight=1.0,
-            config={"llm_instance": llm}
+            config={
+                'config_path': str(config_loader.config_path),
+                'llm_config': model_info.get('config', {})
+            }
         ))
         logger.info(f"✓ Registered expert: {model_key}")
     for model_key in reviewers:
         model_info = config_loader.get_model_info(model_key)
         llm = load_llm_from_config(config_loader, model_key, f"{model_key}_instance")
+        # 注册到 LLMFactory 以便线程获取
+        LLMFactory.register_llm_instance(llm, model_key)
         registry.register(RegisteredModel(
             model_id=model_key,
             name=model_info.get('name', model_key),
@@ -154,7 +165,10 @@ def create_framework_from_config(config_path: str = None) -> tuple:
             capabilities=model_info.get('config', {}).get('capabilities', ['评审']),
             is_active=True,
             weight=1.0,
-            config={"llm_instance": llm}
+            config={
+                'config_path': str(config_loader.config_path),
+                'llm_config': model_info.get('config', {})
+            }
         ))
         logger.info(f"✓ Registered reviewer: {model_key}")
     # 创建框架
@@ -210,15 +224,19 @@ def run_task(
     print(f"  使用了专家：{'✓' if result.used_expert else '✗'}")
     print(f"  总执行时间：{result.total_time:.2f}s")
     print("="*70)
-    print("\n🎯 综合回答 (前 500 字):")
+    print("\n🎯 综合回答:")
     print("-" * 70)
     print(result.combined_answer)
+    # 如果内容过长，提示完整内容在日志中
+    if len(result.combined_answer) > 500:
+        print(f"\n(综合回答超过 500 字符，完整内容请查看日志文件：{log_file})")
     return result
 def run_framework_test():
     """运行内置测试"""
     print("\n" + "="*70)
     print("NEUROAGENT FRAMEWORK v2.0 - 内置测试运行")
     print("="*70)
+
     # 使用默认配置创建框架
     framework, executor_list, reviewer_list = create_framework_from_config()
     # 测试案例

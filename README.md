@@ -2,7 +2,7 @@
 
 神经科学启发的灵活多模型协作框架
 
-基于 **Harness Engineering**、**The Advisor Strategy** 和 **神经心理学（rACC/rTPJ/rDLPFC 三脑机制）**，实现成本效率最优的 AI Agent 系统。
+基于 **Harness Engineering** 和 **The Advisor Strategy**，实现成本效率最优的 AI Agent 系统。
 
 ## 架构概览
 
@@ -218,13 +218,6 @@ neuro_agent_framework/
     └── model_registry.py      # 模型注册中心
 ```
 
-## 神经科学启发
-
-| 机制 | 对应大脑 | 框架角色 |
-|------|----------|----------|
-| rACC | 前扣带回（适应性学习） | 廉价执行器，快速响应 |
-| rTPJ | 颞顶联合区（模拟对手机制） | LLM Reviewer，综合评审 |
-| rDLPFC | 背外侧前额叶（复杂推理） | 专家模型，深度推理 |
 
 ## 🔧 配置选项
 

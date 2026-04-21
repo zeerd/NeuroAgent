@@ -2,63 +2,29 @@
 """
 NeuroAgent Framework 测试脚本
 
-通过调用 main.py 来执行测试，而不是直接执行测试代码
-
-使用方式:
-    python framework_test.py                    # 运行所有测试
-    python framework_test.py -n 1               # 仅运行第 1 个测试
-    python framework_test.py -n 2               # 仅运行第 2 个测试
-    python framework_test.py -n 3               # 仅运行第 3 个测试
-    python framework_test.py -n 1,2             # 运行第 1、2 个测试
-    python framework_test.py -n 1,2,3           # 运行全部测试
+通过调用 main.py 来执行测试
 """
 
 import sys
 import argparse
 import subprocess
-import os
-import logging
 from pathlib import Path
 from datetime import datetime
 
-# 设置日志目录
 project_root = Path(__file__).parent
 logs_dir = project_root / 'logs'
 logs_dir.mkdir(exist_ok=True)
 
-# 设置日志格式
-log_file = logs_dir / f'framework_test_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(name)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_file, encoding='utf-8')
-    ]
-)
-logger = logging.getLogger(__name__)
-
-
-# 测试用例定义
 TEST_CASES = [
     {"name": "简单问答", "task": "什么是 AI?", "complexity": 0.3},
     {"name": "技术解释", "task": "请解释 Transformer 架构原理。", "complexity": 0.8},
-    {"name": "创意任务", "task": "设计一个推广方案。", "complexity": 0.6}
+    {"name": "创意任务", "task": "设计一个推广方案。", "complexity": 0.6},
+    {"name": "CopilotLLM 集成测试", "task": "请展示 GitHub Copilot SDK 的 model 参数用法", "complexity": 0.5, "provider": "copilot", "config_name": "copilot_config.json"}
 ]
 
 
 def run_single_test(test_number: int):
-    """
-    通过调用 main.py 来运行单个测试
-
-    Args:
-        test_number: 测试编号 (1, 2, 或 3)
-
-    Returns:
-        subprocess.CompletedProcess
-    """
+    """通过调用 main.py 来运行单个测试"""
     if test_number < 1 or test_number > len(TEST_CASES):
         raise ValueError(f"测试编号 {test_number} 超出范围 (1-{len(TEST_CASES)})")
 
@@ -68,13 +34,11 @@ def run_single_test(test_number: int):
     print(f"\n{'='*70}")
     print(f"测试 {test_number}/{len(TEST_CASES)}: {test_case['name']}")
     print(f"{'='*70}")
-    print(f"\n任务：{task}")
+    print(f"任务：{task}")
     print(f"复杂度：{test_case['complexity']}")
     print(f"{'='*70}\n")
 
-    # 构建 main.py 命令
     main_script = project_root / 'main.py'
-
     subprocess_args = [
         sys.executable,
         str(main_script),
@@ -82,24 +46,17 @@ def run_single_test(test_number: int):
         f"--complexity={test_case['complexity']}"
     ]
 
-    # 执行 main.py
-    result = subprocess.run(
-        subprocess_args,
-        cwd=project_root,
-        capture_output=False,  # 直接输出到终端
-        check=False
-    )
+    # 如果测试用例指定了配置文件，添加 --config 参数
+    config_name = test_case.get('config_name')
+    if config_name:
+        config_path = project_root / 'config' / config_name
+        subprocess_args.extend(["--config", str(config_path)])
 
-    return result
+    return subprocess.run(subprocess_args, cwd=project_root, capture_output=False, check=False)
 
 
 def run_tests(test_numbers: list = None):
-    """
-    运行一个或多个测试
-
-    Args:
-        test_numbers: 测试编号列表 (None 表示运行全部)
-    """
+    """运行一个或多个测试"""
     print("\n" + "="*70)
     print("NEUROAGENT FRAMEWORK v2.0 - 测试脚本运行")
     print("="*70)
@@ -126,7 +83,7 @@ def run_tests(test_numbers: list = None):
                 'returncode': result.returncode
             })
         except Exception as e:
-            logger.warning(f"测试 {test_num} 运行时发生错误：{e}")
+            print(f"测试 {test_num} 运行时发生错误：{e}")
             results.append({
                 'number': test_num,
                 'name': TEST_CASES[test_num - 1]['name'],
@@ -134,7 +91,6 @@ def run_tests(test_numbers: list = None):
                 'error': str(e)
             })
 
-    # 打印汇总
     print("\n" + "="*70)
     print("📊 测试汇总")
     print("="*70)
@@ -156,15 +112,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="NeuroAgent Framework 测试脚本",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-使用方式:
-  python framework_test.py                    # 运行所有测试
-  python framework_test.py -n 1               # 仅运行第 1 个测试
-  python framework_test.py -n 2               # 仅运行第 2 个测试
-  python framework_test.py -n 3               # 仅运行第 3 个测试
-  python framework_test.py -n 1,2             # 运行第 1、2 个测试
-  python framework_test.py -n 1,2,3           # 运行全部测试
-        """
+        epilog="使用方式:\n  python framework_test.py                    # 运行所有测试\n  python framework_test.py -n 1               # 仅运行第 1 个测试\n  python framework_test.py -n 1,2             # 运行第 1、2 个测试"
     )
 
     parser.add_argument(
@@ -175,12 +123,10 @@ def main():
 
     args = parser.parse_args()
 
-    # 解析测试编号
     test_numbers = None
     if args.numbers:
         try:
             test_numbers = [int(int_num.strip()) for int_num in args.numbers.split(',')]
-            # 验证编号范围
             for num in test_numbers:
                 if num < 1 or num > len(TEST_CASES):
                     print(f"错误：测试编号 {num} 超出范围 (1-{len(TEST_CASES)})")
@@ -192,7 +138,6 @@ def main():
     try:
         run_tests(test_numbers=test_numbers)
     except Exception as e:
-        logger.exception(f"测试执行失败：{e}")
         print(f"\n❌ 测试执行失败：{e}")
         sys.exit(1)
 

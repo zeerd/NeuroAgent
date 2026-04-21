@@ -1,128 +1,105 @@
-# NeuroAgent Framework - 提示词目录
+# NeuroAgent Framework - 独立提示词模板
 
-这个目录包含所有与 LLM 交互的提示词模板，使用 Jinja2 格式。
+所有与 LLM 交互的提示词（Prompts）都在此目录中，采用独立文件管理，便于维护。
 
 ## 📁 目录结构
 
 ```
 prompts/
-├── README.md                     # 本文件
-├── executor_standard.j2          # 标准方法执行者
-├── executor_alternative.j2       # 创新方法探索者
-├── executor_diverse.j2           # 多元化视角执行者
-├── executor_critical.j2          # 批判性思考者
-├── reviewer_system.j2            # 评审器系统提示
-├── reviewer_user.j2              # 评审器用户提示
-└── expert_task.j2                # 专家升级任务提示
+├── README.md                      # 本文件
+├── reviewer.md                    # 评审器系统提示词
+└── executors/                     # 执行器提示词模板
+    ├── standard.md                # 标准方法执行者 (rACC_STANDARD)
+    ├── alternative.md             # 创新方法探索者 (rACC_ALTERNATIVE)
+    ├── diverse.md                 # 多元化视角执行者 (rACC_DIVERSE)
+    └── critical.md                # 批判性思考者 (rACC_CRITICAL)
+└── system/                        # 系统级提示词模板
+    ├── assistant.md               # 通用助手系统提示词
+    └── expert.md                  # 专家级 AI 系统提示词
 ```
 
-## 📝 提示词模板说明
+## 🔧 使用方式
 
-### 执行器提示词 (Executor Prompts)
-
-所有执行器提示词都支持以下变量：
-
-- `{{ request }}` - 用户原始任务
-- `{{ context }}` - 背景信息
-
-| 文件名 | 角色 | 用途 |
-|--------|------|------|
-| `executor_standard.j2` | 标准方法执行者 | 遵循最佳实践，直接解决问题 |
-| `executor_alternative.j2` | 创新方法探索者 | 挑战常规，提供创新方案 |
-| `executor_diverse.j2` | 多元化视角执行者 | 多角度的综合解决方案 |
-| `executor_critical.j2` | 批判性思考者 | 质疑假设，识别问题 |
-
-### 评审器提示词 (Reviewer Prompts)
-
-| 文件名 | 类型 | 用途 |
-|--------|------|------|
-| `reviewer_system.j2` | System | 评审专家身份设定 |
-| `reviewer_user.j2` | User | 评审任务详细说明 |
-
-**变量：**
-- `{{ request }}` - 原始用户请求
-- `{{ execution_results }}` - 执行结果摘要列表
-
-### 专家升级提示词 (Expert Prompts)
-
-| 文件名 | 类型 | 用途 |
-|--------|------|------|
-| `expert_task.j2` | User | 专家升级任务任务 |
-
-**变量：**
-- `{{ request }}` - 原始用户请求
-- `{{ results }}` - 执行结果列表（Jinja2 循环）
-
-## 🔄 使用说明
-
-### 加载提示词
+### 1. 代码中使用
 
 ```python
-from neuro_agent_framework.prompts.prompt_loader import PromptLoader
+from neuro_agent_framework.core.template_loader import get_template_loader
 
-# 创建加载器
-loader = PromptLoader()
-
-# 加载单个提示词
-template = loader.load_prompt("executor_standard")
-
-# 渲染提示词
-prompt = template.render(
-    request="设计一个推广方案",
-    context="目标用户：年轻人"
+# 加载用户提示词模板
+loader = get_template_loader()
+prompt = loader.load_template(
+    "executors/standard",  # 模板名称
+    variables={
+        "request": "设计一个推广方案",
+        "context": "目标用户：年轻人"
+    }
 )
 
-# 批量加载
-templates = loader.load_prompts([
-    "executor_standard",
-    "executor_alternative"
-])
+# 加载系统提示词模板
+system_prompt = loader.load_template("system/assistant")
 ```
 
-### 使用全局加载器
+### 2. 模板变量格式
 
-```python
-from neuro_agent_framework.prompts.prompt_loader import load_prompt
+使用 `{变量名}` 或 `{{变量名}}` 作为占位符。
 
-# 加载并渲染提示词
-prompt = load_prompt(
-    "executor_standard",
-    request="测试任务",
-    context="测试背景"
-)
-```
+| 变量 | 示例值 | 说明 |
+|------|--------|------|
+| `{request}` | "设计一个推广方案" | 用户原始任务 |
+| `{context}` | "目标用户：年轻人" | 背景信息 |
 
-## 📖 文档
+## 📋 模板列表
 
-完整的提示词文档请查看 `[docs/PROMPTS.md](../docs/PROMPTS.md)`。
+### 执行器模板 (executors/*)
 
-## 🛠️ 维护说明
+1. **executors/standard.md** - 标准方法执行者
+   - 角色：rACC_STANDARD
+   - 用途：使用最直接的解决方法
 
-### 添加新提示词
+2. **executors/alternative.md** - 创新方法探索者
+   - 角色：rACC_ALTERNATIVE
+   - 用途：挑战常规，提供创新方案
 
-1. 创建新的 `.j2` 文件
-2. 使用 Jinja2 变量语法定义变量
-3. 在 `docs/PROMPTS.md` 中补充文档
-4. 添加测试验证
+3. **executors/diverse.md** - 多元化视角执行者
+   - 角色：rACC_DIVERSE
+   - 用途：从多个角度分析问题
 
-### 提示词变量规范
+4. **executors/critical.md** - 批判性思考者
+   - 角色：rACC_CRITICAL
+   - 用途：质疑假设，找出问题
 
-- 使用 `{{ variable }}` 语法
-- 变量名使用蛇形命名（如 `user_request`）
-- 避免特殊字符和空格
+### 系统模板 (system/*)
 
-### 测试提示词
+1. **system/assistant.md** - 通用助手系统提示词
+   - 用途：所有执行器的默认系统提示词
 
-```python
-from neuro_agent_framework.prompts import PromptLoader
+2. **system/expert.md** - 专家级 AI 系统提示词
+   - 用途：专家升级模块使用
 
-loader = PromptLoader()
-template = loader.load_prompt("executor_standard")
+### 评审器模板 (reviewer.md)
 
-result = template.render(
-    request="测试",
-    context="测试上下文"
-)
+1. **reviewer.md** - 评审器系统提示词
+   - 角色：rTPJ_REVIEWER
+   - 用途：分析多个执行器结果，进行综合评估
 
-print(result)
-```
+## 🚀 添加新模板
+
+1. 在 `prompts/` 下创建新的 `.md` 文件
+2. 使用 `{变量名}` 定义占位符
+3. 在代码中通过 `TemplateLoader` 加载
+
+## 📚 设计文档参考
+
+完整的设计文档请参考：
+- `docs/PROMPTS.md` - 提示词设计原则和架构
+
+## 🔄 维护说明
+
+- ✅ 所有提示词使用 Markdown 格式
+- ✅ 所有提示词都使用变量化设计
+- ✅ 所有提示词都易于人类阅读和编辑
+- ✅ 所有提示词都有清晰的角色定义
+
+---
+
+**最后更新**: 2026-04-20

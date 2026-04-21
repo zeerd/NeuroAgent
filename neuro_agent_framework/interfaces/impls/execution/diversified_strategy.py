@@ -1,10 +1,10 @@
-"""
+""""
 DiversifiedParallelStrategy - 多样化并行执行策略
 
 特点：
 - 根据不同模型的角色分发差异化任务提示
 - 适合 3 个及以上执行器的场景
-- 类似大脑 rACC: 不同情境激活不同经验
+- 内部命名采用 rACC_* 标识执行器角色
 """
 
 import logging

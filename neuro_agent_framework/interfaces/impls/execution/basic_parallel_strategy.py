@@ -64,7 +64,11 @@ class BasicParallelStrategy(IExecutionStrategy):
             llm_instance = llm_factory.LLMFactory.get_instance(f"{instance_id}_instance")
         if llm_instance is None:
             raise RuntimeError(f"LLM instance not found for model: {model.model_id}")
-        response = llm_instance.chat(request)
+        
+        # 将请求字符串转换为 Message 对象列表
+        from neuro_agent_framework.llm.base import Message, MessageRole
+        messages = [Message(role=MessageRole.USER, content=request)]
+        response = llm_instance.chat(messages)
 
         if not response.success:
             raise RuntimeError(f"执行失败：{response.error}")
@@ -73,7 +77,7 @@ class BasicParallelStrategy(IExecutionStrategy):
             model_id=model.model_id,
             model_name=model.name,
             output=response.content,
-            latency=0.5,
+            latency=response.latency,
             confidence=0.7,
             role=model.primary_role
         )

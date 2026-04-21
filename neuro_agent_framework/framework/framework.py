@@ -131,11 +131,13 @@ class NeuroAgentFramework:
 
             # 调用专家执行
             from ..llm.factory import LLMFactory
+            from ..llm.base import Message, MessageRole
             expert_llm = LLMFactory.get_instance(self.expert_model.model_id)
             if expert_llm is None:
                 expert_llm = LLMFactory.get_instance(f"{self.expert_model.model_id}_instance")
             if expert_llm:
-                expert_response = expert_llm.chat(request)
+                messages = [Message(role=MessageRole.USER, content=request)]
+                expert_response = expert_llm.chat(messages)
 
                 if expert_response.success:
                     answers = review_result['combined_answer'] + "\n\n---\n专家回复:\n" + expert_response.content

@@ -37,53 +37,55 @@ class Message:
         """从字典创建消息"""
         return cls(
             role=MessageRole(data["role"]),
-            content=data["content"],
-            metadata=data.get("metadata", {})
+            content=data.get("content", "")
         )
 
 
 @dataclass
 class LLMConfig:
     """
-    LLM 配置
+    LLM 配置类
 
-    统一的配置接口，支持不同提供商
+    用于定义 LLM 的基本参数
     """
-    # 基础配置
-    model: str  # 模型标识符
-
-    # API 配置
-    api_type: str = "openai"  # API 类型
-    api_base: Optional[str] = None  # API 端点 URL
-    api_key: Optional[str] = None  # API 密钥
-    api_version: Optional[str] = None  # API 版本
-
-    # 请求配置
-    temperature: float = 0.7  # 采样温度
-    top_p: float = 1.0  # Top-p 采样
-    max_tokens: int = 4096  # 最大生成长度
-    frequency_penalty: float = 0.0  # 频率惩罚
-    presence_penalty: float = 0.0  # 存在惩罚
-    n: int = 1  # 生成数量
-
-    # 功能配置
-    stream: bool = False  # 是否流式输出
-    tools: Optional[List[Dict]] = None  # 工具定义
-    tool_choice: Optional[str] = None  # 工具选择策略
-
-    # 超时配置
-    timeout: float = 60.0  # 请求超时（秒）
+    model: str
+    api_type: str = "openai"
+    api_base: str = None
+    api_key: str = None
+    api_version: str = None
+    temperature: float = 0.7
+    top_p: float = 1.0
+    max_tokens: int = 4096
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
+    n: int = 1
+    stream: bool = False
+    timeout: float = 60.0  # API call timeout in seconds
+    role: str = None  # Framework-specific role (rACC_STANDARD, rDLPFC_upgrader, etc.)
+    # Additional OpenAI-specific parameters
+    tools: Any = None
+    tool_choice: Any = None
+    functions: Any = None
+    logit_bias: Dict = field(default_factory=dict)
+    user: str = ""
+    parallel_tool_calls: bool = True  # OpenAI parameter
+    estimated_cost: float = 0.0
+    estimated_latency: float = 0.0
+    capabilities: List[str] = field(default_factory=list)
 
     def __post_init__(self):
-        """验证配置"""
+        """验证配置参数"""
         if not self.model:
             raise ValueError("Model must be specified")
-
-        if self.temperature < 0 or self.temperature > 2:
-            raise ValueError("Temperature must between 0 and 2")
-
-        if self.top_p < 0 or self.top_p > 1:
+        # Allow openai, copilot, and 'ollama' (Ollama's OpenAI-compatible API)
+        if self.api_type not in ["openai", "copilot", "ollama"]:
+            raise ValueError(f"Invalid api_type: {self.api_type}. Must be one of 'openai', 'copilot', or 'ollama'")
+        if not (0 <= self.temperature <= 2):
+            raise ValueError("Temperature must be between 0 and 2")
+        if not (0 <= self.top_p <= 1):
             raise ValueError("Top-p must be between 0 and 1")
+        if self.max_tokens <= 0:
+            raise ValueError("max_tokens must be > 0")
 
 
 @dataclass
@@ -91,26 +93,25 @@ class LLMResponse:
     """
     LLM 响应
 
-    统一的响应格式
+    用于保存 LLM 调用的结果
     """
     success: bool
     content: str
     model_id: str
-    usage: Dict[str, int] = field(default_factory=dict)  # token 统计
-    latency: float = 0.0  # 延迟（秒）
+    usage: Dict[str, int] = field(default_factory=dict)
+    latency: float = 0.0
     metadata: Dict = field(default_factory=dict)
-    finish_reason: Optional[str] = None  # 结束原因
-    error: Optional[str] = None  # 错误信息
+    error: Optional[str] = None
+    finish_reason: Optional[str] = None
 
     @property
     def is_successful(self) -> bool:
-        """便捷的访问方法"""
+        """检查调用是否成功"""
         return self.success
 
     @classmethod
-    def from_error(cls, error_message: str,
-                   model_id: str = "unknown") -> 'LLMResponse':
-        """从错误创建响应"""
+    def from_error(cls, error_message: str, model_id: str = "unknown") -> 'LLMResponse':
+        """创建错误响应"""
         return cls(
             success=False,
             content="",
@@ -118,125 +119,99 @@ class LLMResponse:
             error=error_message
         )
 
-    def __str__(self) -> str:
-        """字符串表示"""
-        status = "✓" if self.success else "✗"
-        return (f"{status} LLMResponse: {self.model_id} "
-                f"({self.latency:.2f}s) - {len(self.content)} chars")
-
 
 class BaseLLM(ABC):
     """
-    LLM 抽象基类
+    抽象基类
 
-    所有 LLM 实现必须继承此类并提供相应的接口
+    定义语言模型的基本接口
     """
 
     def __init__(self, config: LLMConfig):
-        """
-        初始化 LLM
-
-        Args:
-            config: LLM 配置对象
-        """
         self.config = config
         self.model_id = config.model
         self._setup()
 
-    @abstractmethod
     def _setup(self):
-        """
-        设置方法
-
-        子类实现初始化逻辑
-        """
+        """初始化时的自定义设置"""
         pass
 
     @abstractmethod
     def _call(self, messages: List[Message]) -> LLMResponse:
         """
-        核心调用方法
+        内部调用方法
 
         Args:
             messages: 消息列表
 
         Returns:
-            LLM 响应
+            LLMResponse 对象
         """
         pass
+
+    async def _async_call(self, messages: List[Message]) -> LLMResponse:
+        """异步调用（默认同步）"""
+        return self._call(messages)
 
     @abstractmethod
     def _stream_call(self, messages: List[Message]):
         """
-        流式调用方法
-
-        返回生成片段序列
+        流式调用（生成器）
 
         Args:
             messages: 消息列表
 
         Yields:
-            片段
+            字符串块
         """
         pass
 
-    def chat(self, messages: List[Message] | str) -> LLMResponse:
+    def chat(self, messages: List[Message]) -> LLMResponse:
         """
-        聊天接口
+        发送消息并获得响应
 
         Args:
-            messages: 消息列表 或 字符串消息
+            messages: 消息列表
 
         Returns:
-            响应结果
+            LLMResponse 对象
         """
         try:
-            if isinstance(messages, str):
-                messages = [Message(role=MessageRole.USER, content=messages)]
-            response = self._call(messages)
-            return response
-        except Exception:
-            return LLMResponse.from_error("Unknown error", self.model_id)
+            return self._call(messages)
+        except Exception as e:
+            return LLMResponse.from_error(str(e), self.model_id)
+
+    async def chat_async(self, messages: List[Message]) -> LLMResponse:
+        """异步发送消息并获得响应"""
+        try:
+            return await self._async_call(messages)
+        except Exception as e:
+            return LLMResponse.from_error(str(e), self.model_id)
 
     def stream_chat(self, messages: List[Message]):
         """
-        流式聊天接口
+        流式发送消息
 
         Args:
             messages: 消息列表
 
         Yields:
-            响应片段
+            字符串块
         """
         try:
-            fragments = self._stream_call(messages)
-            for fragment in fragments:
-                yield fragment
+            for chunk in self._stream_call(messages):
+                yield chunk
         except Exception as e:
             yield f"[ERROR] {e}"
 
-    def _get_time(self) -> float:
-        """获取当前时间（秒）"""
-        import time
-        return time.time()
-
-    def validate_connection(self) -> bool:
-        """
-        验证连接是否可用
-
-        Returns:
-            连接状态
-        """
-        test_message = [
-            Message(role=MessageRole.USER, content="Hello, are you there?")
-        ]
-        response = self.chat(test_message)
-        return response.success
+    def count_tokens(self, messages: List[Message]) -> int:
+        """估算 token 数量"""
+        return sum(len(msg.content) for msg in messages) // 4
 
     @property
     @abstractmethod
     def supports_streaming(self) -> bool:
-        """是否支持流式输出"""
+        """是否支持流式接口"""
         pass
 
     @property
@@ -245,15 +220,6 @@ class BaseLLM(ABC):
         """最大上下文长度"""
         pass
 
-    @abstractmethod
-    def count_tokens(self, messages: List[Message]) -> int:
-        """
-        计算消息 token 数量
-
-        Args:
-            messages: 消息列表
-
-        Returns:
-            token 数量
-        """
+    def close(self):
+        """关闭连接"""
         pass
